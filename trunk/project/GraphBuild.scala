@@ -10,7 +10,7 @@ object GraphBuild extends Build {
       organization := "scalax.collection.graph",
       version      := "1.3.1"
 	),
-    aggregate = Seq(core, json/*, constrained*/)
+    aggregate = Seq(core, json, constrained)
   )
   lazy val core = Project(
     id = "Graph-core",
@@ -33,20 +33,16 @@ object GraphBuild extends Build {
       version      := "1.3.0.2"
 	)
   ) dependsOn (core)
-  /*lazy val constrained = Project(
+  lazy val constrained = Project(
     id = "Graph-constrained",
     base = file("constrained"),
     settings = defaultSettings
-  ) dependsOn (core)*/
+  ) dependsOn (core)
 
   lazy val defaultSettings = Defaults.defaultSettings ++ Seq(
     scalaVersion := "2.9.1",
     parallelExecution in Test := false,
-    scalacOptions ++= Opts.compile.encoding("Cp1252") :+
-                      Opts.compile.deprecation :+
-                      Opts.compile.unchecked,
-    scalacOptions in (Compile, doc) <++= (name, version) map {
-                                         Opts.doc.title(_) ++ Opts.doc.version(_) },
+    scalacOptions ++= Seq("-encoding", "Cp1252", "-deprecation", "-unchecked"),
     testOptions in Test := Seq(Tests.Filter(s => s.endsWith("Test"))),
     libraryDependencies ++= Seq(
       "junit" % "junit" % "4.8.2" % "test",

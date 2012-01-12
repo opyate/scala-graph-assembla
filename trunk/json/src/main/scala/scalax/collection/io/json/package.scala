@@ -3,7 +3,7 @@ package scalax.collection.io
 import scalax.collection.GraphPredef._,
        scalax.collection.GraphEdge._,
        scalax.collection.{Graph, GraphLike, GraphAuxCompanion}
-import scalax.collection.generic.{GraphCompanion, GraphFactory}
+import scalax.collection.generic.GraphFactory
 
 /**
  * Facilitates populating graphs with nodes/edges from JSON text
@@ -65,7 +65,7 @@ package object json {
   }
   /** Enables calling `Graph.fromJson` with `Graph` being any Graph companion object.*/
   implicit def graphC2JsonGraphC[G[N, E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,G[N,E]]]
-              (graphCompanion: GraphCompanion[G] with GraphAuxCompanion[G]): JsonGraphCompanion[G] =
+              (graphCompanion: GraphFactory[G] with GraphAuxCompanion[G]): JsonGraphCompanion[G] =
     new JsonGraphCompanion[G](graphCompanion)
 
   final class JsonGraph[N, E[X] <: EdgeLikeIn[X]] (graph: Graph[N,E]) {

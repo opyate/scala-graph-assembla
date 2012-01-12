@@ -63,9 +63,6 @@ trait GraphBase[N, E[X] <: EdgeLikeIn[X]]
   def graphSize = edges.size
   
   type NodeT <: InnerNodeLike with Serializable
-  /* TODO this is superfluous but a necessary workaround for scaladoc #4180
-   * If resolved, replace NodeT with Node and remove trait Node 
-   */
   trait Node extends Serializable
   trait InnerNodeLike extends NodeOut[N] with Node
   {
@@ -399,11 +396,16 @@ trait GraphBase[N, E[X] <: EdgeLikeIn[X]]
      */
     def edge: E[NodeT]
     /**
+     * The inner nodes incident with this inner edge.
+     * This is just a synonym to `this` that extends `Iterable[NodeT]`.
+     */
+    @inline final def nodes = this 
+    /**
      * Finds nodes of this edge which only participate in this edge.
      * 
      * @return those nodes of this edge which do not participate in any other edge 
      */
-    def privateNodes: Set[NodeT] = (iterator filter (_.edges.size == 1)).toSet 
+    def privateNodes: Set[NodeT] = filter (_.edges.size == 1) toSet 
     /**
      * All connecting edges, that is all edges at any of the nodes incident with this edge.
      *

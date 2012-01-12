@@ -6,7 +6,7 @@ import org.scalatest.Informer
 import org.scalatest.matchers.ShouldMatchers
 
 import GraphPredef._, GraphEdge._, GraphTraversal.VisitorReturn._
-import generic.{GraphCompanion, GraphFactory}
+import generic.GraphFactory
 import edge.WUnDiEdge, edge.Implicits._
 import collection.mutable.{ListBuffer, Set}
 
@@ -26,8 +26,8 @@ class TTraversalRootTest
  *	by the Graph factory and passed to the constructor. For instance,
  *	this allows the same tests to be run for mutable and immutable Graphs.
  */
-private class TTraversal[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-			(val factory: GraphCompanion[CC])
+private class TTraversal[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
+			(val factory: GraphFactory[CC])
 	extends	Suite
 	with	ShouldMatchers
 {

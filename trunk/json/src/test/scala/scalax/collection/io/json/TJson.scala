@@ -10,7 +10,7 @@ import net.liftweb.json._
 import scalax.collection._
 import scalax.collection.GraphPredef._,
        scalax.collection.GraphEdge._
-import scalax.collection.generic.GraphCompanion
+import scalax.collection.generic.GraphFactory
 import scalax.collection.edge._,
        scalax.collection.edge.Implicits._
 
@@ -32,8 +32,8 @@ class TJsonRootTest
 }
 /**	Tests JSON input and output.
  */
-class TJson[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-    (val factory: GraphCompanion[CC] with GraphAuxCompanion[CC])
+class TJson[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
+    (val factory: GraphFactory[CC] with GraphAuxCompanion[CC])
 	extends	Suite
 	with	ShouldMatchers
 {

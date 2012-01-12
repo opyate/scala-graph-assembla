@@ -23,12 +23,12 @@ object Graph
 	def empty[N, E[X] <: EdgeLikeIn[X]]: Graph[N,E] = DefaultGraphImpl.empty[N,E]
   override def from [N, E[X] <: EdgeLikeIn[X]]
               (nodes: Iterable[N],
-               edges: Iterable[E[N]]) = DefaultGraphImpl.from[N,E](nodes, edges)
+               edges: Iterable[E[N]]): Graph[N,E] = DefaultGraphImpl.from[N,E](nodes, edges)
   override def fromStream [N, E[X] <: EdgeLikeIn[X]]
      (nodeStreams: Iterable[NodeInputStream[N]] = Seq.empty[NodeInputStream[N]],
       nodes:       Iterable[N]                  = Seq.empty[N],
       edgeStreams: Iterable[GenEdgeInputStream[N,E]] = Seq.empty[GenEdgeInputStream[N,E]],
-      edges:       Iterable[E[N]]               = Seq.empty[E[N]]): DefaultGraphImpl[N,E] =
+      edges:       Iterable[E[N]]               = Seq.empty[E[N]]): Graph[N,E] =
     DefaultGraphImpl.fromStream[N,E](nodeStreams, nodes, edgeStreams, edges)
 	implicit def canBuildFrom[N, E[X] <: EdgeLikeIn[X]]: CanBuildFrom[Coll, GraphParamIn[N,E], Graph[N,E]] =
 	  new GraphCanBuildFrom[N,E]
@@ -41,6 +41,7 @@ class TinyGraphImpl[N, E[X] <: EdgeLikeIn[X]]
   with    SetsOnlyGraph[N,E,TinyGraphImpl[N,E]]
   with    GraphTraversalImpl[N,E]
 {
+  override def graphCompanion = TinyGraphImpl
   protected val _nodes = new NodeSet 
   protected val _edges = new EdgeSet
   initialize(iniNodes, iniEdges)
@@ -58,7 +59,7 @@ class TinyGraphImpl[N, E[X] <: EdgeLikeIn[X]]
     TinyGraphImpl.empty[N,E]
   @inline final override def clone: TinyGraphImpl[N,E] =
     TinyGraphImpl.from [N,E](_nodes.toNodeInSet,
-                              _edges.toEdgeInSet)
+                             _edges.toEdgeInSet)
   @inline final override def copy(nodes: Iterable[N],
                                   edges: Iterable[E[N]]) =
     TinyGraphImpl.from[N,E](nodes, edges)
@@ -94,6 +95,7 @@ class DefaultGraphImpl[N, E[X] <: EdgeLikeIn[X]]
   with    AdjacencyListGraph[N,E,DefaultGraphImpl[N,E]]
   with    GraphTraversalImpl[N,E]
 {
+  override def graphCompanion = DefaultGraphImpl
   protected val _nodes = new NodeSet 
   protected val _edges = new EdgeSet
   initialize(iniNodes, iniEdges)

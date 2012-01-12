@@ -9,7 +9,7 @@ import org.scalatest.matchers.ShouldMatchers
 import org.scalatest.BeforeAndAfterEach
 
 import GraphPredef._, GraphEdge._
-import generic.{GraphCompanion, GraphFactory}
+import generic.GraphFactory
 
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
@@ -22,7 +22,7 @@ class TSerializableRootTest
 /**	Tests for standard java serialization.
  */
 class TSerializable[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-    (val factory: GraphCompanion[CC])
+    (val factory: GraphFactory[CC])
 	extends	Suite
 	with	  ShouldMatchers
 	with    BeforeAndAfterEach

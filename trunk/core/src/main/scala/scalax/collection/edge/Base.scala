@@ -115,8 +115,8 @@ object LBase {
                         (label: L) = newEdge[N,L](nodes, label)
   }
   /** Convenience trait to quickly achieve implicit conversion from a
-   * labeled edge to its label. This trait is the typed variant works for immutable `Graph`s only.
-   * For other graph types see [package scalax.collection.edge.LBase.TypedLEdgeImplicits].
+   * labeled edge to its label for any graph type.
+   * This trait is the typed variant of [[scalax.collection.edge.LBase.LEdgeImplicits]] which works for immutable `Graph`s only.
    *
    * @tparam G kind of type of graph.
    * @tparam UL type of the user label.
@@ -124,12 +124,12 @@ object LBase {
   trait TypedLEdgeImplicits[G[N, E[X] <: EdgeLikeIn[X]] <: GraphBase[N,E], UL] {
     /** Lets implicitly convert a labeled outer edge to its label:
       {{{ 
-      import scalax.collection.mutable.{Graph => MGraph, DefaultGraphImpl => MGraphImpl}
+      import scalax.collection.mutable.{Graph => MGraph}
 
       case class MyLabel(val i: Int)
       val eOuter = LUnDiEdge(1,3)(MyLabel(4))
 
-      object MyLabelConversion extends LEdgeImplicits[MyLabel]
+      object MyLabelConversion extends TypedLEdgeImplicits[MGraph, MyLabel]
       import MyLabelConversion._
       val four = eOuter.i
       }}}  
@@ -137,13 +137,13 @@ object LBase {
     implicit def outerLEdge2UserLabel[N](edge: LEdge[N]{type L1 = UL}): UL = edge.label
     /** Lets implicitly convert a labeled inner edge to its label:
       {{{
-      import scalax.collection.mutable.{Graph => MGraph, DefaultGraphImpl => MGraphImpl}
+      import scalax.collection.mutable.{Graph => MGraph}
 
       case class MyLabel(val i: Int)
       val g = MGraph(LUnDiEdge(1,3)(MyLabel(4)))
       val eInner = g.edges.head
 
-      object MyLabelConversion extends TypedLEdgeImplicits[MGraphImpl, MyLabel]
+      object MyLabelConversion extends TypedLEdgeImplicits[MGraph, MyLabel]
       import MyLabelConversion._
       val four_2 = eInner.i 
       }}}
@@ -159,7 +159,7 @@ object LBase {
   }
   /** Convenience trait to quickly achieve implicit conversion from a
    * labeled edge to its label. This trait works for immutable `Graph`s only.
-   * For other graph types see [package scalax.collection.edge.LBase.TypedLEdgeImplicits].
+   * For other graph types see [[scalax.collection.edge.LBase.TypedLEdgeImplicits]].
    * 
    * @tparam UL type of the user label.
    */

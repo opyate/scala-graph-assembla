@@ -8,7 +8,7 @@ import org.scalatest.matchers.ShouldMatchers
 import scalax.collection.{Graph, GraphLike}
 import scalax.collection.GraphPredef._,
        scalax.collection.GraphEdge._
-import scalax.collection.generic.{GraphCompanion, GraphFactory}
+import scalax.collection.generic.GraphFactory
 
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
@@ -30,8 +30,8 @@ class TFlightRootTest
  *	by the Graph factory and passed to the constructor. For instance,
  *	this allows the same tests to be run for mutable and immutable Graphs.
  */
-class TFlight[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-			(val factory: GraphCompanion[CC])
+class TFlight[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
+			(val factory: GraphFactory[CC])
 	extends	Suite
 	with	ShouldMatchers
 {

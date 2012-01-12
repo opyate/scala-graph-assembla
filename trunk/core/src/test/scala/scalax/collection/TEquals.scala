@@ -6,7 +6,7 @@ import org.scalatest.Informer
 import org.scalatest.matchers.ShouldMatchers
 
 import GraphPredef._, GraphEdge._
-import generic.{GraphCompanion, GraphFactory}
+import generic.GraphFactory
 
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
@@ -36,8 +36,8 @@ class TEqualsRootTest
 }
 /**	This class contains tests for graph operations.
  */
-class TEquals[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-    (val factory: GraphCompanion[CC])
+class TEquals[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
+    (val factory: GraphFactory[CC])
 	extends	Suite
 	with	ShouldMatchers
 {

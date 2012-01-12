@@ -49,6 +49,7 @@ package immutable {
     with    Serializable
     with    MyExtGraphLike[N,E,MyExtGraph[N,E]] // extension trait
   {
+    def graphCompanion = MyExtGraph
     protected val _nodes = new NodeSet 
     protected val _edges = new EdgeSet
     initialize(iniNodes, iniEdges)
@@ -93,6 +94,7 @@ package mutable {
     with    Serializable
     with    MyExtGraphLike[N,E,MyExtGraph[N,E]] // extension trait
   {
+    def graphCompanion = MyExtGraph
     protected val _nodes = new NodeSet 
     protected val _edges = new EdgeSet
     initialize(iniNodes, iniEdges)

@@ -1,6 +1,6 @@
 package scalax.collection
 
-import GraphEdge.{EdgeLike, EdgeCopy}
+import GraphEdge.{EdgeLike, EdgeCopy, DiHyperEdgeLike}
 /**
  * This object serves as a container for several `Graph`-related definitions like
  * parameter-types and implicit conversions.
@@ -12,7 +12,18 @@ import GraphEdge.{EdgeLike, EdgeCopy}
  * @author Peter Empen
  */
 object GraphPredef {
-  type EdgeLikeIn  [N] = EdgeLike[N] with EdgeCopy[EdgeLike] with EdgeIn[N,EdgeLike] 
+  /**
+   * The most generic type for the `E` type parameter of a `Graph`.
+   * Supplying this type as the actual type parameter allows to include any kind of edges
+   * such as hyper-edges, undirected and directed edges.
+   */
+  type EdgeLikeIn[N] = EdgeLike[N] with EdgeCopy[EdgeLike] with EdgeIn[N,EdgeLike] 
+  /**
+   * Denotes all directed edge types for the `E` type parameter of a `Graph`.
+   * Supplying this type as the actual type parameter allows to include any kind of directed edges
+   * such as directed hyper-edges and directed edges.
+   */
+  type DiHyperEdgeLikeIn[N] = DiHyperEdgeLike[N] with EdgeCopy[DiHyperEdgeLike] with EdgeIn[N,DiHyperEdgeLike]
   /**
    * This algebraic type serves as the type parameter to SetLike.
    * 
@@ -31,9 +42,12 @@ object GraphPredef {
      */
     final class Partitions[N, E[X]<:EdgeLikeIn[X]](val elems: Iterable[GraphParam[N,E]])
     {
-      lazy val (nodes, edges) = elems partition (_.isNode)
-      def nodeParams = nodes.asInstanceOf[Iterable[GraphParamNode[N]]]
-      def edgeParams = edges.asInstanceOf[Iterable[GraphParamEdge]]
+      lazy val partitioned = elems match {
+        case g: Graph[N,E] => (g.nodes, g.edges)
+        case x             => x partition (_.isNode)
+      }
+      def nodeParams = partitioned._1.asInstanceOf[Iterable[GraphParamNode[N]]]
+      def edgeParams = partitioned._2.asInstanceOf[Iterable[GraphParamEdge]]
   
       def toOuterNodes: Iterable[N]    = nodeParams map (_.value)
       def toOuterEdges: Iterable[E[N]] = edgeParams map {_ match

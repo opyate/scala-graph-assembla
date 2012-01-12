@@ -1,9 +1,12 @@
 package scalax.collection
 
-import collection.SetLike
+import collection.{SetLike, GenTraversableOnce}
+import collection.mutable.{Set => MSet}
+import collection.generic.GenericCompanion
 
 import GraphPredef.{EdgeLikeIn, GraphParam, GraphParamIn, NodeIn, NodeOut, EdgeIn, EdgeOut}
 import GraphEdge.{EdgeLike, EdgeCompanionBase}
+import generic.{GraphCompanion, GraphFactory}
 import io._
 
 /**
@@ -17,6 +20,8 @@ import io._
  * @tparam E    the kind of the edges (links) in this graph.
  * @tparam This the type of the graph itself.
  *
+ * @define REIMPLFACTORY Note that this method must be reimplemented in each module
+ *         having its own factory methods such as `constrained` does.
  * @author Peter Empen
  */
 trait GraphLike[N,
@@ -26,8 +31,19 @@ trait GraphLike[N,
   with    GraphTraversal[N,E]
   with    GraphBase     [N,E]
   with    GraphDegree   [N,E]
-{
+{ selfGraph =>
+  protected type ThisGraph = this.type
+  /** The companion object of this `Graph` instance. */
+  def graphCompanion: GraphCompanion
+  /** Downcasts `graphCompanion` to a companion of the core module. */
+  final def coreCompanion: Option[GraphFactory[Graph]] =
+    Option(graphCompanion match { case f: GraphFactory[Graph] => f
+                                  case _ => null })
   override def stringPrefix: String = "Graph"
+  /**
+   * Ensures sorted nodes/edges unless this `Graph` has more than 64 elements.
+   * See also `toSortedString`.
+   */
   override def toString = if (size <= 64) toSortedString()
                           else super.toString
   /**
@@ -107,6 +123,11 @@ trait GraphLike[N,
         catch { case _: ClassCastException => false }          }
     case _ =>
       false
+  }
+  type NodeT <: InnerNodeLike 
+  trait InnerNodeLike extends super.InnerNodeLike {
+    /** The `Graph` instance `this` node is contained in. */
+    def containingGraph: ThisGraph = selfGraph.asInstanceOf[ThisGraph]
   }
   protected abstract class NodeBase(override val value: N)
     extends super.NodeBase
@@ -252,6 +273,46 @@ trait GraphLike[N,
     case e: E[N]                 => this +# e
     case e: GraphBase[N,E]#EdgeT => this +# e.toEdgeIn 
   }
+  override def ++ (elems: GenTraversableOnce[GraphParam[N,E]]) = bulkOp(elems, true)
+  override def -- (elems: GenTraversableOnce[GraphParam[N,E]]) = bulkOp(elems, false)
+  /** Prepares and calls `plusPlus` or `minusMinus`. */
+  final protected def bulkOp(elems:      GenTraversableOnce[GraphParam[N,E]],
+                             isPlusPlus: Boolean): This = {
+    val p = partition(elems)
+    if (isPlusPlus) plusPlus  (p.toOuterNodes, p.toOuterEdges)
+    else            minusMinus(p.toOuterNodes, p.toOuterEdges)
+  }
+  final protected def partition(elems: GenTraversableOnce[GraphParam[N,E]]) =
+    new GraphParam.Partitions[N,E] (elems match {
+      case x: Iterable       [GraphParam[N,E]] => x
+      case x: TraversableOnce[GraphParam[N,E]] => x.toIterable
+      case _ => throw new IllegalArgumentException("TraversableOnce expected.")
+    })
+  /** Implements the heart of `++` calling the `from` factory method of the companion object.
+   *  $REIMPLFACTORY */
+  protected def plusPlus(newNodes: Iterable[N], newEdges: Iterable[E[N]]): This =
+    coreCompanion.getOrElse(throw new UnsupportedOperationException).
+      from[N,E](nodes.toNodeInSet ++ newNodes,
+                edges.toEdgeInSet ++ newEdges).asInstanceOf[This]
+  /** Implements the heart of `--` calling the `from` factory method of the companion object.
+   *  $REIMPLFACTORY */
+  protected def minusMinus(delNodes: Iterable[N], delEdges: Iterable[E[N]]): This = {
+    val delNodesEdges = minusMinusNodesEdges(delNodes, delEdges)
+    coreCompanion.getOrElse(throw new UnsupportedOperationException).
+      from[N,E](delNodesEdges._1, delNodesEdges._2).asInstanceOf[This]
+  }
+  /** Calculates the `nodes` and `edges` arguments to be passed to a factory method
+   *  when delNodes and delEdges are to be deleted by `--`.
+   */
+  protected def minusMinusNodesEdges(delNodes: Iterable[N], delEdges: Iterable[E[N]]) =
+    (nodes.toNodeInSet -- delNodes,
+     { val delNodeSet = delNodes.toSet
+        val restNodes = 
+          for(e <- edges.toEdgeInSet if e forall (n =>
+              ! (delNodeSet contains n))) yield e
+        restNodes -- delEdges
+      }
+     )
   /** Creates a new subgraph consisting of all nodes and edges of this graph except ´node´
    *  and those edges which `node` is incident with.
    *
@@ -299,7 +360,7 @@ trait GraphLike[N,
   }
   /** Creates a new subgraph consisting of all nodes and edges of this graph except `elem`.
    *  If `elem` is of type N, this method maps to `-(node: N)`. Otherwise the edge is deleted
-   *  with all those nodes which are incident with `edge` and would become edge-less after deletion.
+   *  along with those incident nodes which would become edge-less after deletion.
    *
    *  @param elem node or edge to be removed.
    *  @return a new subgraph of this graph after the "ripple" deletion of the passed node or edge.
@@ -311,7 +372,9 @@ trait GraphLike[N,
     case e: GraphBase[N,E]#EdgeT => this -!# e.toEdgeIn 
   }
   /** Creates a new subgraph consisting of all nodes and edges of this graph but the elements
-   * of `coll` which will be unconditionally removed.
+   * of `coll` which will be unconditionally removed. This operation differs from `--`
+   * in that edge are deleted along with those incident nodes which would become edge-less
+   * after deletion.
    *
    *  @param coll Collection of nodes and/or edges to be removed; if the element type is N,
    *              it is removed from the node set otherwise from the edge set.
@@ -319,7 +382,25 @@ trait GraphLike[N,
    *  @return the new subgraph containing all nodes and edges of this graph
    *          after the "ripple" deletion of nodes and the simple deletion of edges in `coll` .
    */
-  def --!(coll: Iterable[GraphParam[N,E]]) = (this.asInstanceOf[This] /: coll)(_ -! _) 
+  def --! (elems: GenTraversableOnce[GraphParam[N,E]]): This = {
+    val p = partition(elems)
+    val (delNodes, delEdges) = (p.toOuterNodes, p.toOuterEdges)
+    val unconnectedNodeCandidates = {
+      val edgeNodes = MSet.empty[N]
+      delEdges foreach (_ foreach (n => edgeNodes += n))
+      edgeNodes -- delNodes
+    }
+    val delEdgeSet = {
+      val edges = MSet.empty[EdgeT]
+      delEdges foreach (this find _ map (edges += _))
+      edges
+    }
+    minusMinus(delNodes ++
+                 (unconnectedNodeCandidates filter (
+                    nc => this find nc map (n =>
+                      n.edges forall (delEdgeSet contains _)) getOrElse false)),
+               delEdges)
+  }
   /**
    * Provides a shortcut for predicates involving any graph element.
    * In order to compute a subgraph of this graph, the result of this method
@@ -375,9 +456,9 @@ object Graph
   with    GraphAuxCompanion[Graph]
 {
   override def newBuilder  [N, E[X] <: EdgeLikeIn[X]] = immutable.Graph.newBuilder[N,E]
-  override def empty       [N, E[X] <: EdgeLikeIn[X]] = immutable.Graph.empty[N,E]
+  override def empty       [N, E[X] <: EdgeLikeIn[X]]: Graph[N,E] = immutable.Graph.empty[N,E]
   override def from        [N, E[X] <: EdgeLikeIn[X]](nodes: Iterable[N],
-                                                      edges: Iterable[E[N]]) =
+                                                      edges: Iterable[E[N]]): Graph[N,E] =
     immutable.Graph.from[N,E](nodes, edges)
   override def fromStream [N, E[X] <: EdgeLikeIn[X]]
      (nodeStreams: Iterable[NodeInputStream[N]] = Seq.empty[NodeInputStream[N]],

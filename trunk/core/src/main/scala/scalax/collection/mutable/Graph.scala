@@ -43,7 +43,7 @@ class GraphBuilder[N,
                    E[X] <: EdgeLikeIn[X],
                    CC[N,E[X] <: EdgeLikeIn[X]] <: scalax.collection.Graph[N,E] with
                                                   scalax.collection.GraphLike[N,E,CC[N,E]]]
-      (factory: GraphCompanion[CC]) 
+      (factory: GraphFactory[CC]) 
   extends BuilderImpl[N,E,CC]
 {
   def result: This = factory.from(nodes, edges)
@@ -64,11 +64,9 @@ trait GraphLike[N,
   with    EdgeOps   [N,E,This]
   with    Mutable
 {
-	override def clone: This = {
-	  val copy = empty ++= (nodes map (n => NodeIn(n.value)))
-		edges foreach {e => (copy +=# e.toEdgeIn) }
-		copy
-	}
+	override def clone: This =
+    coreCompanion.getOrElse(throw new UnsupportedOperationException).
+      from[N,E](nodes.toNodeInSet, edges.toEdgeInSet).asInstanceOf[This]
   /**
    * Populates this graph with the nodes and edges read from `nodeStream` and `edgeStream`.
    * 
@@ -95,8 +93,8 @@ trait GraphLike[N,
       c subtract (node, false, minus, (NodeT) => {})
       c
     }
-		@inline final override def remove(node: NodeT) = subtract(node, true,  minus, minusEdges)
-    @inline final def removeGently   (node: NodeT) = subtract(node, false, minus, minusEdges)
+		override def remove(node: NodeT) = subtract(node, true,  minus, minusEdges)
+    def removeGently   (node: NodeT) = subtract(node, false, minus, minusEdges)
     /**
      * removes all incident edges of `node` from the edge set leaving the node set unchanged.
      * @param node the node the incident edges of which are to be removed from the edge set.
@@ -223,15 +221,15 @@ object Graph
   extends MutableGraphFactory[Graph]
   with    GraphAuxCompanion  [Graph]
 {
-	def empty[N, E[X] <: EdgeLikeIn[X]] = new DefaultGraphImpl[N,E]
+	def empty[N, E[X] <: EdgeLikeIn[X]]: Graph[N,E] = new DefaultGraphImpl[N,E]
   override def from [N, E[X] <: EdgeLikeIn[X]](nodes: Iterable[N],
-                                               edges: Iterable[E[N]]) =
+                                               edges: Iterable[E[N]]): Graph[N,E] =
     DefaultGraphImpl.from[N,E](nodes, edges)
   override def fromStream [N, E[X] <: EdgeLikeIn[X]]
      (nodeStreams: Iterable[NodeInputStream[N]] = Seq.empty[NodeInputStream[N]],
       nodes:       Iterable[N]                  = Seq.empty[N],
       edgeStreams: Iterable[GenEdgeInputStream[N,E]] = Seq.empty[GenEdgeInputStream[N,E]],
-      edges:       Iterable[E[N]]               = Seq.empty[E[N]]): DefaultGraphImpl[N,E] =
+      edges:       Iterable[E[N]]               = Seq.empty[E[N]]): Graph[N,E] =
     DefaultGraphImpl.fromStream[N,E](nodeStreams, nodes, edgeStreams, edges)
 
   implicit def canBuildFrom[N, E[X] <: EdgeLikeIn[X]]
@@ -246,6 +244,7 @@ class DefaultGraphImpl[N, E[X] <: EdgeLikeIn[X]]
   with    AdjacencyListGraph[N, E, DefaultGraphImpl[N,E]]
   with    GraphTraversalImpl[N,E]
 {
+  override def graphCompanion = DefaultGraphImpl
   protected val _nodes = new NodeSet 
   protected val _edges = new EdgeSet 
   initialize(iniNodes, iniEdges)

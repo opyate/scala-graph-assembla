@@ -284,7 +284,7 @@ object GraphEdge {
    * 
    * @author Peter Empen
    */
-  trait HyperDiEdgeLike[N] extends EdgeLike[N]
+  trait DiHyperEdgeLike[+N] extends EdgeLike[N]
   {
     @inline final override def directed = true
     /**
@@ -317,7 +317,7 @@ object GraphEdge {
     val nodeSeparator = "~>" 
     def unapply[N](e: DiEdgeLike[N]) = Some(e)
   }
-  trait DiEdgeLike[N] extends HyperDiEdgeLike[N] {
+  trait DiEdgeLike[+N] extends DiHyperEdgeLike[N] {
     @inline final override def to = _2
   }
   case class EdgeException(val msg: String) extends Exception
@@ -434,7 +434,7 @@ object GraphEdge {
   @SerialVersionUID(51L)
   class DiHyperEdge[N] (nodes: Product)
     extends HyperEdge[N](nodes)
-    with    HyperDiEdgeLike[N]
+    with    DiHyperEdgeLike[N]
     with    EdgeCopy[DiHyperEdge]
     with    EdgeIn[N,DiHyperEdge]
   {

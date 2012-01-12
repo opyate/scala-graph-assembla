@@ -10,7 +10,7 @@ import collection.immutable.{Range, SortedSet}
 import collection.mutable.{Set => MutableSet}
 
 import GraphPredef._, GraphEdge._
-import generic.{GraphCompanion, GraphFactory}
+import generic.GraphFactory
 
 import edge._, edge.WBase._, edge.LBase._, edge.WLBase._
 import io._
@@ -30,8 +30,8 @@ class TStreamRootTest
 /**	This class contains tests for implementing node/edge input streams
  *  and using them for graph creation.
  */
-class TStream[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-    (val factory: GraphCompanion[CC] with GraphAuxCompanion[CC])
+class TStream[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
+    (val factory: GraphFactory[CC] with GraphAuxCompanion[CC])
 	extends	Suite
 	with	ShouldMatchers
 {

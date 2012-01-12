@@ -6,7 +6,7 @@ import org.scalatest.Informer
 import org.scalatest.matchers.ShouldMatchers
 
 import GraphPredef._, GraphEdge._
-import generic.{GraphCompanion, GraphFactory}
+import generic.GraphFactory
 
 import org.scalatest.junit.JUnitRunner
 import org.junit.runner.RunWith
@@ -48,7 +48,7 @@ class TEditRootTest
   def test_PlusEdgeEq {
     val g = mutableFactory(2~3)
     def n(i: Int) = g get i
-    implicit val unDiFactory = UnDiEdge 
+    implicit val unDiFactory = UnDiEdge
     g addEdge (n(3), n(2))  should be (false)
     (g +~=    (n(2), n(2))) should have size (4)
 
@@ -149,8 +149,8 @@ class TEditRootTest
  *	by the Graph factory and passed to the constructor. For instance,
  *	this allows the same tests to be run for mutable and immutable Graphs.
  */
-class TEdit[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
-			(val factory: GraphCompanion[CC])
+class TEdit[CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E]]]
+			(val factory: GraphFactory[CC])
 	extends	Suite
 	with	ShouldMatchers
 {
@@ -277,11 +277,11 @@ class TEdit[+CC[N,E[X] <: EdgeLikeIn[X]] <: Graph[N,E] with GraphLike[N,E,CC[N,E
 		m.contains("3.") should be (true) //m should contain ("3.")
 	}
 	def test_Eq {
-		Graph()		should be === Graph()
+		factory() should be === factory()
 		gInt_1_3	should be === factory(seq_1_3: _*)
 		gString_A	should be === factory("A")
 
-		Graph()		should not be === (Graph(1))
+		factory()	should not be === (factory(1))
 		gInt_1_3	should not be === (factory(2, 3))
 		gString_A	should not be === (factory("B"))
 

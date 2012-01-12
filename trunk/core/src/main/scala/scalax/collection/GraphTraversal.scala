@@ -1,7 +1,6 @@
 package scalax.collection
 
 import collection.mutable.ListBuffer
-
 import GraphPredef.{EdgeLikeIn, GraphParamOut, NodeOut, EdgeOut}
 
 /**
@@ -9,7 +8,8 @@ import GraphPredef.{EdgeLikeIn, GraphParamOut, NodeOut, EdgeOut}
  *
  * Graph traversal means to navigate from node to node based on incident edges.
  * Another kind of navigation is to iterate over nodes/edges based on the node-/edge-set.
- * 
+ *
+ * @define INTOACC taking optional filters and visitors into account.
  * @define VISITORS Node/edge visitor functions allow arbitrary user-defined computation
  *         during the traversal. 
  * @define DIRECTION Determines which connected nodes the traversal has to follow.
@@ -43,6 +43,63 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
 {
   import GraphTraversal.VisitorReturn._
   import GraphTraversal._
+
+  /** Whether `this` graph is connected if it is undirected or
+   *  weakly connected if it is directed.
+   */
+  def isConnected = nodes.headOption map { head =>
+    var cnt = 0
+    head.traverseNodes(direction = AnyConnected, breadthFirst = false) { n =>
+      cnt += 1
+      Continue
+    }
+    cnt == nodes.size
+  } getOrElse true
+  /**
+   * List of sets of nodes with each set containing connected nodes $INTOACC.
+   * If `this` graph is connected, the list has one element containing all nodes
+   * otherwise more than one elements.   
+   * 
+   * @param nodeFilter $NODEFILTER
+   * @param edgeFilter $EDGEFILTER
+   * @param nodeVisitor $NODEVISITOR
+   * @param edgeVisitor $EDGEVISITOR
+   *//*
+  def components (nodeFilter : (NodeT) => Boolean       = anyNode,
+                  edgeFilter : (EdgeT) => Boolean       = anyEdge,
+                  nodeVisitor: (NodeT) => VisitorReturn = noNodeAction,
+                  edgeVisitor: (EdgeT) => Unit          = noEdgeAction): List[Set[NodeT]]*/
+  /** Same as `components(...)` with default arguments. *//*
+  @inline final def components: List[Set[NodeT]] = components()*/
+  /**
+   * Whether `this` graph has at least one cycle.
+   */
+  @inline final def isCyclic: Boolean = findCycle isDefined
+  /**
+   * Whether `this` graph has no cycle.
+   */
+  @inline final def isAcyclic: Boolean = ! isCyclic
+  /**
+   * Finds a cycle in `this` graph $INTOACC, if any.
+   * 
+   * @param nodeFilter $NODEFILTER
+   * @param edgeFilter $EDGEFILTER
+   * @param maxDepth   $MAXDEPTH
+   * @param nodeVisitor $NODEVISITOR
+   * @param edgeVisitor $EDGEVISITOR
+   * @return A cycle or None if either
+   *         a) there exists no cycle in `this` graph or
+   *         b) there exists a cycle in `this` graph but due to the given
+   *            filtering conditions or a `Cancel` return by a visitor this cycle
+   *            had to be disregarded.
+   */
+  def findCycle(nodeFilter : (NodeT) => Boolean       = anyNode,
+                edgeFilter : (EdgeT) => Boolean       = anyEdge,
+                maxDepth   :  Int                     = 0,
+                nodeVisitor: (NodeT) => VisitorReturn = noNodeAction,
+                edgeVisitor: (EdgeT) => Unit          = noEdgeAction): Option[Cycle]
+  /** Same as `findCycle(...)` with default arguments. */
+  @inline final def findCycle: Option[Cycle] = findCycle()
   /**
    * Represents a path in this graph listing the nodes and connecting edges on it
    * with the following syntax:
@@ -56,6 +113,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
    */
   trait Path extends Iterable[GraphParamOut[N,E]]
   {
+    override def stringPrefix = "Path"
     /**
      * Iterator over the nodes of this path. The result is chached
      * on the first call, so consecutive calls of this method are cheep.
@@ -93,6 +151,37 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
    * @return `true` if this graph is complete, `false` if this graph contains any
    * independent nodes. 
    */
+  /**
+   * Represents a cycle in this graph listing the nodes and connecting edges on it
+   * with the following syntax:
+   * 
+   * `cycle ::= ''start-end-node'' { ''edge'' ''node'' } ''edge'' ''start-end-node''`
+   * 
+   * All nodes and edges on the path are distinct except the start and end nodes that
+   * are equal. A cycle contains at least a start node followed by any number of
+   * consecutive pairs of an edge and a node and the end node equaling to the start node.
+   * The first element is the start node, the second is an edge with its tail
+   * being the start node and its head being the third element etc.   
+   */
+  trait Cycle extends Path {
+    override def stringPrefix = "Cycle"
+    /**
+     * Semantically compares `this` cycle with `that` cycle. While `==` returns `true`
+     * only if the cycles contain the same elements in the same order, this comparison
+     * returns also `true` if the elements of `that` cycle can be shifted and optionally
+     * reversed such that their elements have the same order.
+     * 
+     * For instance, given
+     * 
+     * `c1 = Cycle(1-2-3-1)`, `c2 = Cycle(2-3-1-2)` and `c3 = Cycle(2-1-3-2)`
+     * 
+     * the following expressions hold:
+     * 
+     * `c1 != c2`, `c1 != c3` but `c1 sameAs c2` and `c1 sameAs c3`.  
+     */
+    def sameAs(that: GraphTraversal[N,E]#Cycle): Boolean
+  }
+
   def isComplete = {
     val orderLessOne = order - 1
     nodes forall (_.diSuccessors.size == orderLessOne)
@@ -133,8 +222,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
   trait InnerNodeLike extends super.InnerNodeLike
   {
     /**
-     * Finds a successor of this node for which the predicate `pred` holds
-     * taking optional filters into account.
+     * Finds a successor of this node for which the predicate `pred` holds $INTOACC.
      * $VISITORS
      *
      * This node itself does not count as a match. This is also true if it has a hook.
@@ -157,8 +245,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
                       nodeVisitor: (NodeT) => VisitorReturn  = noNodeAction,
                       edgeVisitor: (EdgeT) => Unit           = noEdgeAction): Option[NodeT]
     /**
-     * Checks whether `potentialSuccessor` is a successor of this node
-     * taking optional filters into account.
+     * Checks whether `potentialSuccessor` is a successor of this node $INTOACC.
      * $VISITORS
      * Same as `isPredecessorOf`. 
      *
@@ -188,8 +275,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
       hasSuccessor(potentialSuccessor,
                    nodeFilter, edgeFilter, nodeVisitor, edgeVisitor)
     /**
-     * Finds a predecessor of this node for which the predicate `pred` holds
-     * taking optional filters into account.
+     * Finds a predecessor of this node for which the predicate `pred` holds $INTOACC.
      * $VISITORS
      *
      * This node itself does not count as a match. This is also true if it has a hook.
@@ -212,8 +298,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
                         nodeVisitor: (NodeT) => VisitorReturn  = noNodeAction,
                         edgeVisitor: (EdgeT) => Unit           = noEdgeAction): Option[NodeT]
     /**
-     * Checks whether `potentialPredecessor` is a predecessor of this node
-     * taking optional filters into account.
+     * Checks whether `potentialPredecessor` is a predecessor of this node $INTOACC.
      * $VISITORS
      * Same as `isSuccessorOf`. 
      *
@@ -244,7 +329,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
                      nodeFilter, edgeFilter, nodeVisitor, edgeVisitor)
     /**
      * Finds a node (not necessarily directly) connected with this node
-     * for which the predicate `pred` holds taking optional filters into account.
+     * for which the predicate `pred` holds $INTOACC.
      * For directed or mixed graphs the node to be found is weekly connected with this node.
      * $VISITORS
      *
@@ -270,7 +355,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
                       edgeVisitor: (EdgeT) => Unit           = noEdgeAction): Option[NodeT]
     /**
      * Checks whether `potentialConnected` is a node (not necessarily directly)
-     * connected with this node taking optional filters into account.
+     * connected with this node $INTOACC.
      * For directed or mixed graphs it is satisfactory that `potentialConnected` is
      * weekly connected with this node.
      * $VISITORS
@@ -293,7 +378,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
                     nodeFilter, edgeFilter, nodeVisitor, edgeVisitor).isDefined
     /**
      * Finds a path from this node to a successor of this node for which the predicate
-     * `pred` holds taking optional filters and visitors into account.
+     * `pred` holds $INTOACC.
      *
      * This node itself does not count as a match. This is also true if it has a hook.
      * If several successors exist the algorithm selects any first matching node.
@@ -327,8 +412,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
       pathUntil(_ eq potentialSuccessor,
                 anyNode, anyEdge, noNodeAction, noEdgeAction)
     /**
-     * Finds a path from this node to `potentialSuccessor`
-     * taking optional filters and visitors into account.
+     * Finds a path from this node to `potentialSuccessor` $INTOACC.
      *
      * @param potentialSuccessor The node a path is to be found to.
      * @param nodeFilter $NODEFILTER
@@ -362,7 +446,7 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
      * @param edgeVisitor $EDGEVISITOR
      * @return The shortest path to `potentialSuccessor` or None if either
      *         a) there exists no path to `potentialSuccessor` or
-     *         c) there exists a path to `potentialSuccessor` but due to the given
+     *         b) there exists a path to `potentialSuccessor` but due to the given
      *            filtering conditions this path had to be disregarded.
      */
     def shortestPathTo(potentialSuccessor: NodeT,
@@ -370,6 +454,28 @@ trait GraphTraversal[N, E[X] <: EdgeLikeIn[X]] extends GraphBase[N,E]
                        edgeFilter : (EdgeT) => Boolean        = anyEdge,
                        nodeVisitor: (NodeT) => VisitorReturn  = noNodeAction,
                        edgeVisitor: (EdgeT) => Unit           = noEdgeAction): Option[Path]
+    /**
+     * Finds a cycle starting the search at this node $INTOACC, if any.
+     * The resulting cycle may start at any node connected with `this` node.
+     * 
+     * @param nodeFilter $NODEFILTER
+     * @param edgeFilter $EDGEFILTER
+     * @param maxDepth   $MAXDEPTH
+     * @param nodeVisitor $NODEVISITOR
+     * @param edgeVisitor $EDGEVISITOR
+     * @return A cycle or None if either
+     *         a) there exists no cycle in the component `this` node belongs to or
+     *         b) there exists a cycle in the component but due to the given
+     *            filtering conditions or a `Cancel` return by a visitor this cycle
+     *            had to be disregarded.
+     */
+    def findCycle(nodeFilter : (NodeT) => Boolean       = anyNode,
+                  edgeFilter : (EdgeT) => Boolean       = anyEdge,
+                  maxDepth   :  Int                     = 0,
+                  nodeVisitor: (NodeT) => VisitorReturn = noNodeAction,
+                  edgeVisitor: (EdgeT) => Unit          = noEdgeAction): Option[Cycle]
+    /** Same as `findCycle(...)` with default arguments. */
+    @inline final def findCycle: Option[Cycle] = findCycle()
     /**
      * Traverses this graph from this (root) node for side-effects allowing
      * 

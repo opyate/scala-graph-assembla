@@ -10,7 +10,8 @@ import scalax.collection.GraphTraversalImpl
 import scalax.collection.io._
 import scalax.collection.constrained.{Graph => CGraph}
 import scalax.collection.constrained.generic.ImmutableGraphFactory
-
+import PreCheckFollowUp._
+    
 trait Graph[N, E[X] <: EdgeLikeIn[X]]
 	extends	scalax.collection.immutable.Graph[N,E]
 	with    scalax.collection.constrained.Graph[N,E]
@@ -22,19 +23,26 @@ object Graph
   extends ImmutableGraphFactory[Graph]
   with    GraphAuxCompanion[Graph]
 {
-	override def empty[N, E[X] <: EdgeLikeIn[X]] (cFactory: ConstraintCompanion[Constraint])
+	override def empty[N, E[X] <: EdgeLikeIn[X]]
+	                  (cFactory: ConstraintCompanion[Constraint]): Graph[N,E]
 	  = DefaultGraphImpl.empty[N,E](cFactory)
-  override def from [N, E[X] <: EdgeLikeIn[X]] (cFactory: ConstraintCompanion[Constraint])
-                                               (nodes: Iterable[N],
-                                                edges: Iterable[E[N]])
+  override protected[collection]
+  def fromUnchecked[N, E[X] <: EdgeLikeIn[X]] (cFactory: ConstraintCompanion[Constraint])
+                                              (nodes:    Iterable[N],
+                                               edges:    Iterable[E[N]]): DefaultGraphImpl[N,E]
+    = DefaultGraphImpl.fromUnchecked[N,E](cFactory)(nodes, edges)
+  override def from [N, E[X] <: EdgeLikeIn[X]]
+                    (cFactory: ConstraintCompanion[Constraint])
+                    (nodes: Iterable[N],
+                     edges: Iterable[E[N]]): Graph[N,E]
     = DefaultGraphImpl.from[N,E](cFactory)(nodes, edges)
   override def fromStream [N, E[X] <: EdgeLikeIn[X]]
      (cFactory: ConstraintCompanion[Constraint])
      (nodeStreams: Seq[NodeInputStream[N]] = Seq.empty[NodeInputStream[N]],
       nodes:       Iterable[N]             = Seq.empty[N],
       edgeStreams: Seq[GenEdgeInputStream[N,E]] = Seq.empty[GenEdgeInputStream[N,E]],
-      edges:       Iterable[E[N]]          = Seq.empty[E[N]]): DefaultGraphImpl[N,E] =
-    DefaultGraphImpl.fromStream[N,E](cFactory)(
+      edges:       Iterable[E[N]]          = Seq.empty[E[N]]): Graph[N,E]
+    = DefaultGraphImpl.fromStream[N,E](cFactory)(
                                      nodeStreams, nodes, edgeStreams, edges)
 //	implicit def canBuildFrom[N, E[X] <: EdgeLikeIn[X]]
 //    : CanBuildFrom[Coll, GraphParamIn[N,E], Graph[N,E]] = new GraphCanBuildFrom[N,E]
@@ -52,9 +60,9 @@ abstract class DefaultGraphImpl[N, E[X] <: EdgeLikeIn[X]]
 
   @inline final override def empty: DefaultGraphImpl[N,E] =
     DefaultGraphImpl.empty(constraintFactory)
-  @inline final override def clone: DefaultGraphImpl[N,E] =
-    DefaultGraphImpl.from(constraintFactory)(_nodes.toNodeInSet,
-                                             _edges.toEdgeInSet)
+  @inline final override def clone: DefaultGraphImpl[N,E] = {
+    DefaultGraphImpl.fromUnchecked(constraintFactory)(_nodes.toNodeInSet, _edges.toEdgeInSet)
+  }
   @SerialVersionUID(8081L)
   final protected class NodeBase(override val value: N)
     extends super.NodeBase(value)
@@ -70,29 +78,41 @@ object DefaultGraphImpl
   override def empty[N, E[X] <: EdgeLikeIn[X]] (cFactory: ConstraintCompanion[Constraint])
     = from (cFactory)(Set.empty[N], Set.empty[E[N]])
 
-  @SerialVersionUID(8081L)
+  override protected[collection]
+  def fromUnchecked[N, E[X] <: EdgeLikeIn[X]] (cFactory: ConstraintCompanion[Constraint])
+                                              (nodes:    Iterable[N],
+                                               edges:    Iterable[E[N]]): DefaultGraphImpl[N,E]
+    = new UserConstrainedGraphImpl[N,E](cFactory)(nodes, edges)
+
   override def from [N, E[X] <: EdgeLikeIn[X]] (cFactory: ConstraintCompanion[Constraint])
                                                (nodes: Iterable[N],
                                                 edges: Iterable[E[N]]): DefaultGraphImpl[N,E] =
-  { val existElems = nodes.nonEmpty || edges.nonEmpty 
+  { val existElems = nodes.nonEmpty || edges.nonEmpty
+    var preCheckResult = PreCheckResult(Abort)
     if (existElems) {
       val emptyGraph = empty[N,E](cFactory)
       val constraint = cFactory(emptyGraph)
-      if (! constraint.mayCreate(nodes, edges)) {
+      preCheckResult = constraint.preCreate(nodes, edges)
+      if (preCheckResult.abort) { 
         constraint onAdditionRefused (nodes, edges, emptyGraph) 
         return emptyGraph
       }
     }
-    val newGraph = new UserConstrainedGraphImpl[N,E](cFactory)(nodes, edges)
+    val newGraph = fromUnchecked[N,E](cFactory)(nodes, edges)
     if (existElems) {
       val emptyGraph = empty[N,E](cFactory)
       val constraint = cFactory(emptyGraph)
-      if (constraint.commitAdd(newGraph, nodes, edges, true))
-        newGraph
-      else {
+      var handle = false
+      preCheckResult.followUp match {
+        case Complete  =>
+        case PostCheck => handle = ! constraint.postAdd(newGraph, nodes, edges, preCheckResult)
+        case Abort     => handle = true
+      }
+      if (handle) {
         constraint.onAdditionRefused(nodes, edges, newGraph)
         emptyGraph
-      }
+      } else
+        newGraph
     } else
       newGraph
   }
@@ -103,10 +123,12 @@ object DefaultGraphImpl
       edgeStreams: Seq[GenEdgeInputStream[N,E]] = Seq.empty[GenEdgeInputStream[N,E]],
       iniEdges:    Iterable[E[N]]          = Seq.empty[E[N]]): DefaultGraphImpl[N,E] =
   {
+    var preCheckResult = PreCheckResult(Abort)
     if (iniNodes.nonEmpty || iniEdges.nonEmpty) {
       val emptyGraph = empty[N,E](cFactory)
       val constraint = cFactory(emptyGraph)
-      if (! constraint.mayCreate(iniNodes, iniEdges)) {
+      preCheckResult = constraint.preCreate(iniNodes, iniEdges)
+      if (preCheckResult.abort) { 
         constraint onAdditionRefused (iniNodes, iniEdges, emptyGraph) 
         return emptyGraph
       }
@@ -114,12 +136,17 @@ object DefaultGraphImpl
     val newGraph = new UserConstrainedGraphImpl[N,E](cFactory)() {
       from(nodeStreams, iniNodes, edgeStreams, iniEdges)
     }
-    if (newGraph.commitAdd(newGraph, iniNodes, iniEdges, true))
-      newGraph
-    else {
+    var handle = false
+    preCheckResult.followUp match {
+      case Complete  =>
+      case PostCheck => handle = ! newGraph.postAdd(newGraph, iniNodes, iniEdges, preCheckResult)
+      case Abort     => handle = true
+    }
+    if (handle) {
       newGraph.onAdditionRefused(iniNodes, iniEdges, newGraph)
       empty[N,E](cFactory)
-    }
+    } else
+      newGraph
   }
   //implicit def canBuildFrom[N, E[X] <: EdgeLikeIn[X]]
   //  : CanBuildFrom[Coll, GraphParamIn[N,E], DefaultGraphImpl[N,E]] = new GraphCanBuildFrom[N,E]
@@ -132,10 +159,11 @@ class UserConstrainedGraphImpl[N, E[X] <: EdgeLikeIn[X]]
   extends DefaultGraphImpl    [N,E](iniNodes, iniEdges)
   with    UserConstrainedGraph[N,E]
 {
+  final override def graphCompanion = DefaultGraphImpl
   final override val self = this
   final override val constraintFactory = cFactory
   final override val constraint  = cFactory(this)
   final override def copy(nodes: Iterable[N],
-                          edges: Iterable[E[N]]) = 
+                          edges: Iterable[E[N]]) =
     DefaultGraphImpl.from(constraintFactory)(nodes, edges)
 }

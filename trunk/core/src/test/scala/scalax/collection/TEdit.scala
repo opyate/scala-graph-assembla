@@ -48,7 +48,7 @@ class TEditRootTest
   def test_PlusEdgeEq {
     val g = mutableFactory(2~3)
     def n(i: Int) = g get i
-    implicit val unDiFactory = UnDiEdge
+    implicit val unDiFactory = UnDiEdge 
     g addEdge (n(3), n(2))  should be (false)
     (g +~=    (n(2), n(2))) should have size (4)
 

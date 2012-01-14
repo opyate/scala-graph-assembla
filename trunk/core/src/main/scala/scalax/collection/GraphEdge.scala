@@ -117,13 +117,31 @@ object GraphEdge {
     }
     def contains[X >: Nothing](node: X) = iterator contains node
     /** Same as `contains`. */
-    @inline final def isAt[X >: Nothing](node: X) = this contains node     
+    @inline final def isAt[X >: Nothing](node: X) = this contains node
+    /** `true` it this edge is directed. */
     def directed = false
+    /** Same as `directed`. */
+    @inline final def isDirected = directed
+    /** `true` it this edge is undirected. */
     @inline final def undirected = ! directed
+    /** Same as `undirected`. */
+    @inline final def isUndirected = undirected
     /** `true` if this is a hyperedge that is it may have more than two ends. */
     def isHyperEdge = true
     /** `true` if this edge has exactly two ends. */
     @inline final def nonHyperEdge = ! isHyperEdge
+    /** `true` if this edge produces a self-loop.
+     * In case of a non-hyperedge, a loop is given if the incident nodes are equal.
+     * In case of a directed hyperedge, a loop is given if the source is equal to
+     * any of the targets.
+     * In case of an undirected hyperedge, a loop is given if any pair of incident
+     * nodes has equal nodes.
+     */
+    def isLooping = if (arity == 2) _1 == _2
+                    else if (directed) iterator.drop(1) exists (_ == _1)
+                    else EdgeLike.nrEqualingNodes(this, this) > 0
+    /** Same as `! looping`. */                
+    final def nonLooping = ! isLooping 
     /**
      * The weight of this edge defaulting to 1L.
      * 
